@@ -7,12 +7,14 @@ import json
 
 import torch
 
+from functools import partial
+
 import sys
 sys.path.insert(0, 'hifi-gan')
 from meldataset import mel_spectrogram
 
-# from torch.utils.data import DataLoader
-# from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
+from torch.nn.utils.rnn import pad_sequence
 
 import matplotlib.pyplot as plt
 
@@ -56,20 +58,28 @@ def load_wavs(wavs):
 
     return y
 
-def normalize_tensor(tensor, min_v=-12, max_v=0):
-    center_v = (max_v - min_v) / 2
-    tensor = tensor / center_v  + 1
-    return tensor
+def collate_function(files, h):
 
-def collate_function(files):
+    mels = list()
 
-    return
+    for file in files:
+        y = torch.FloatTensor(load_wavs(file)).unsqueeze(0)
+        mel = mel_spectrogram(y, n_fft=h['n_fft'], num_mels=h['num_mels'], 
+                            sampling_rate=h['sampling_rate'], hop_size=h['hop_size'], 
+                            win_size=h['win_size'], fmin=h['fmin'], fmax=h['fmax'])
+        mel = mel.squeeze(0).T # [1, 80, 587] => [587, 80]
 
-def get_data_loader(speech_files):
+        mels.append(mel)
+
+    mel_tensor = pad_sequence(mels, batch_first=True, padding_value=-10)
+
+    return mel_tensor # [B, T, 80]
+
+def get_data_loader(speech_files, h):
 
     dataloader = DataLoader(speech_files, batch_size=4, 
                             shuffle=True, num_workers=4,
-                            collate_fn=collate_function)
+                            collate_fn=partial(collate_function, h=h))
     
     return dataloader
 
@@ -88,14 +98,29 @@ if __name__ == "__main__":
     h = json.load(open('config.json', 'r'))
     # print(h)
 
+    '''
+
     y = torch.FloatTensor(load_wavs(speech_files[0])).unsqueeze(0)
     mel = mel_spectrogram(y, n_fft=h['n_fft'], num_mels=h['num_mels'], 
                           sampling_rate=h['sampling_rate'], hop_size=h['hop_size'], 
                           win_size=h['win_size'], fmin=h['fmin'], fmax=h['fmax'])
+    mel = mel.squeeze(0).T # [1, 80, 587] => [587, 80]
+
+    '''
 
     # print(mel.shape)
-    # torch.Size([1, 80, 587])
+    
 
     # plt.figure()
     # plt.imshow(mel[0, :, :].numpy())
     # plt.show()
+
+    data_loader = get_data_loader(speech_files, h)
+
+    for mels in data_loader:
+        print(mels.shape)
+        break
+
+    plt.figure()
+    plt.imshow(mels[0, :, :].numpy())
+    plt.show()

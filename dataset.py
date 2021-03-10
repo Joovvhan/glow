@@ -41,7 +41,9 @@ def concat_variable_length_files(speech_files, anchor=6.05):
 
     merge_files = folded_files + left_files
     
-    return merge_files
+    # return merge_files
+    return [f[0] for f in merge_files]
+
 
 def load_wavs(wavs):
     if isinstance(wavs, str):
@@ -58,6 +60,7 @@ def load_wavs(wavs):
 
     return y
 
+
 def collate_function(files, h):
 
     mels = list()
@@ -73,12 +76,14 @@ def collate_function(files, h):
 
     mel_tensor = pad_sequence(mels, batch_first=True, padding_value=-10)
 
-    return mel_tensor # [B, T, 80]
+    # return mel_tensor # [B, T, 80]
+    return torch.transpose(mel_tensor, 1, 2) # [B, T, 80]
 
-def get_data_loader(speech_files, h):
+
+def get_data_loader(speech_files, h, num_workers=4):
 
     dataloader = DataLoader(speech_files, batch_size=4, 
-                            shuffle=True, num_workers=4,
+                            shuffle=True, num_workers=num_workers,
                             collate_fn=partial(collate_function, h=h))
     
     return dataloader
@@ -88,7 +93,7 @@ if __name__ == "__main__":
     speech_files = sorted(glob('./data/kss/*/*.wav'))
     before_folding = len(speech_files)
     speech_files = concat_variable_length_files(speech_files)
-    speech_files = [f[0] for f in speech_files]
+    # speech_files = [f[0] for f in speech_files]
     print(f'{before_folding:5} => {len(speech_files):5}')
 
     # dataloader = get_data_loader()
@@ -124,3 +129,5 @@ if __name__ == "__main__":
     plt.figure()
     plt.imshow(mels[0, :, :].numpy())
     plt.show()
+
+# https://github.com/openai/glow
